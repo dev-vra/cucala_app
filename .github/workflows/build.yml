@@ -14,12 +14,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -42,14 +50,40 @@ jobs:
             pyinstaller --noconfirm --icon=assets/icon.ico gerenciador.spec
           fi
 
+      # Compactar builds
+      - name: Package Consolidador
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            powershell Compress-Archive -Path dist/consolidador/* -DestinationPath dist/consolidador-${{ runner.os }}.zip
+          else
+            mkdir -p package/Consolidador/CucalaApps
+            mv dist/consolidador/* package/Consolidador/CucalaApps/
+            tar -czvf dist/consolidador-${{ runner.os }}.tar.gz -C package/Consolidador .
+          fi
+
+      - name: Package Gerenciador
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            powershell Compress-Archive -Path dist/gerenciador/* -DestinationPath dist/gerenciador-${{ runner.os }}.zip
+          else
+            mkdir -p package/Gerenciador/CucalaApps
+            mv dist/gerenciador/* package/Gerenciador/CucalaApps/
+            tar -czvf dist/gerenciador-${{ runner.os }}.tar.gz -C package/Gerenciador .
+          fi
+
+
       - name: Upload Consolidador
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Consolidador-${{ runner.os }}
-          path: dist/consolidador/
+          path: |
+            dist/consolidador-${{ runner.os }}.zip
+            dist/consolidador-${{ runner.os }}.tar.gz
 
       - name: Upload Gerenciador
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Gerenciador-${{ runner.os }}
-          path: dist/gerenciador/
+          path: |
+            dist/gerenciador-${{ runner.os }}.zip
+            dist/gerenciador-${{ runner.os }}.tar.gz

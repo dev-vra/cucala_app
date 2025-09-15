@@ -108,7 +108,8 @@ class LoginWindow(ctk.CTk):
         username = self.username_entry.get().lower()
         password = self.password_entry.get()
         if username in self.users and self.users[username] == password:
-            self.destroy(); StockManagerApp().mainloop()
+            self.destroy()
+            StockManagerApp(username=username).mainloop()
         else:
             messagebox.showerror("Erro de Login", "Usuário ou senha inválidos.", parent=self); self.password_entry.delete(0, 'end')
 
@@ -120,10 +121,29 @@ class ConsultaEstoqueWindow(ctk.CTkToplevel):
         main_frame = ctk.CTkFrame(self); main_frame.pack(expand=True, fill="both", padx=15, pady=15)
         filter_frame = ctk.CTkFrame(main_frame, fg_color="transparent"); filter_frame.pack(fill="x", pady=(0, 10))
         ctk.CTkLabel(filter_frame, text="Filtrar por Estoque:").pack(side="left")
+        with open(resource_path("data/locais.json"), "r", encoding="utf-8") as f:
+            self.locais_estoque = json.load(f)
+
+        # Filtro Estoque
+        ctk.CTkLabel(filter_frame, text="Filtrar por Estoque:").pack(side="left")
         self.estoque_filter_var = ctk.StringVar(value="Todos")
-        self.estoque_filter_menu = ctk.CTkOptionMenu(filter_frame, variable=self.estoque_filter_var, values=["Todos", "Estoque 1", "Estoque 2"], command=self._update_table); self.estoque_filter_menu.pack(side="left", padx=10)
-        table_frame = ctk.CTkFrame(main_frame); table_frame.pack(expand=True, fill="both")
-        self._setup_treeview(table_frame); self._update_table()
+        estoques = ["Todos"] + list(self.locais_estoque.keys())
+        self.estoque_filter_menu = ctk.CTkOptionMenu(
+            filter_frame, variable=self.estoque_filter_var,
+            values=estoques, command=self._update_table
+        )
+        self.estoque_filter_menu.pack(side="left", padx=10)
+
+        # Filtro Local
+        ctk.CTkLabel(filter_frame, text="Filtrar por Local:").pack(side="left")
+        self.local_filter_var = ctk.StringVar(value="Todos")
+        locais = ["Todos"] + sorted({loc for locs in self.locais_estoque.values() for loc in locs})
+        self.local_filter_menu = ctk.CTkOptionMenu(
+            filter_frame, variable=self.local_filter_var,
+            values=locais, command=self._update_table
+        )
+        self.local_filter_menu.pack(side="left", padx=10)
+
 
     def _setup_treeview(self, parent_frame):
         style = ttk.Style(); style.theme_use("default"); style.configure("Treeview", background="#D3D3D3", foreground="black", rowheight=25, fieldbackground="#D3D3D3"); style.map('Treeview', background=[('selected', '#347083')])
@@ -282,68 +302,144 @@ class FilterWindow(ctk.CTkToplevel):
     def _on_apply(self): self.parent_app.execute_isin_filter(self.filters, parent_window=self); self.destroy()
 
 class MovementWindow(ctk.CTkToplevel):
-    def __init__(self, parent, original_index, row_data):
-        super().__init__(parent); self.transient(parent); self.title("Movimentar Lote"); self.geometry("500x450"); self.grab_set()
-        self.parent_app = parent; self.original_index = original_index; self.row_data = row_data;
+    def __init__(self, parent, indices, rows_data):
+        super().__init__(parent)
+        self.transient(parent)
+        self.title("Movimentar Lote(s)")
+        self.geometry("500x450")
+        self.grab_set()
+
+        self.parent_app = parent
+        self.indices = indices              # lista de índices selecionados
+        self.rows_data = rows_data          # lista de dicts com os dados das linhas
+
         with open(resource_path("data/locais.json"), "r", encoding="utf-8") as f:
             self.locais_estoque = json.load(f)
-        self._setup_widgets(); self._load_initial_data()
+
+        self._setup_widgets()
+        self._load_initial_data()
+
     def _setup_widgets(self):
-        main_frame = ctk.CTkFrame(self); main_frame.pack(expand=True, fill="both", padx=20, pady=20)
-        ctk.CTkLabel(main_frame, text="Estado do Lote:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        self.estado_var = ctk.StringVar(); self.estado_menu = ctk.CTkOptionMenu(main_frame, variable=self.estado_var, values=["", "Estocado", "Em uso", "Devolvido", "Descarte"], command=self._on_estado_change); self.estado_menu.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
-        self.conditional_frame = ctk.CTkFrame(main_frame, fg_color="transparent"); self.conditional_frame.grid(row=1, column=0, columnspan=2, sticky="nsew")
-        ctk.CTkButton(main_frame, text="Confirmar", command=self._on_confirm).grid(row=2, column=1, padx=10, pady=20, sticky="e"); ctk.CTkButton(main_frame, text="Cancelar", fg_color="gray", command=self.destroy).grid(row=2, column=0, padx=10, pady=20, sticky="w")
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        # título mostra quantos lotes foram selecionados
+        ctk.CTkLabel(main_frame, text=f"{len(self.indices)} lote(s) selecionado(s)",
+                     font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, columnspan=2, pady=10)
+
+        ctk.CTkLabel(main_frame, text="Estado do Lote:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        self.estado_var = ctk.StringVar()
+        self.estado_menu = ctk.CTkOptionMenu(
+            main_frame, variable=self.estado_var,
+            values=["", "Estocado", "Em uso", "Devolvido", "Descarte"],
+            command=self._on_estado_change
+        )
+        self.estado_menu.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+
+        self.conditional_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        self.conditional_frame.grid(row=2, column=0, columnspan=2, sticky="nsew")
+
+        ctk.CTkButton(main_frame, text="Confirmar", command=self._on_confirm).grid(row=3, column=1, padx=10, pady=20, sticky="e")
+        ctk.CTkButton(main_frame, text="Cancelar", fg_color="gray", command=self.destroy).grid(row=3, column=0, padx=10, pady=20, sticky="w")
+
     def _load_initial_data(self):
-        initial_estado = self.row_data.get("Estado", ""); self.estado_var.set(initial_estado if pd.notna(initial_estado) else ""); self._on_estado_change(self.estado_var.get())
+        # se vários lotes foram selecionados, o estado começa vazio
+        if len(self.rows_data) == 1:
+            initial_estado = self.rows_data[0].get("Estado", "")
+            self.estado_var.set(initial_estado if pd.notna(initial_estado) else "")
+        else:
+            self.estado_var.set("")
+        self._on_estado_change(self.estado_var.get())
+
     def _on_estado_change(self, selected_estado):
-        for widget in self.conditional_frame.winfo_children(): widget.destroy()
-        if selected_estado == "Estocado": self._create_estocado_fields()
-        elif selected_estado == "Em uso": self._create_em_uso_fields()
-        elif selected_estado == "Devolvido": self._create_devolvido_fields()
-        elif selected_estado == "Descarte": self._create_descarte_fields()
+        for widget in self.conditional_frame.winfo_children():
+            widget.destroy()
+
+        if selected_estado == "Estocado":
+            self._create_estocado_fields()
+        elif selected_estado == "Em uso":
+            self._create_em_uso_fields()
+        elif selected_estado == "Devolvido":
+            self._create_devolvido_fields()
+        elif selected_estado == "Descarte":
+            self._create_descarte_fields()
+
     def _create_estocado_fields(self):
-        ctk.CTkLabel(self.conditional_frame, text="Estoque:").grid(row=0, column=0, padx=10, pady=10, sticky="w"); self.estoque_var = ctk.StringVar(); self.estoque_menu = ctk.CTkOptionMenu(self.conditional_frame, variable=self.estoque_var, values=["", "Estoque 1", "Estoque 2"], command=self._on_estoque_change); self.estoque_menu.grid(row=0, column=1, padx=10, pady=10, sticky="ew"); ctk.CTkLabel(self.conditional_frame, text="Local:").grid(row=1, column=0, padx=10, pady=10, sticky="w"); self.local_var = ctk.StringVar(); self.local_menu = ctk.CTkOptionMenu(self.conditional_frame, variable=self.local_var, values=[""]); self.local_menu.grid(row=1, column=1, padx=10, pady=10, sticky="ew"); self.local_menu.configure(state="disabled")
-        initial_estoque = self.row_data.get("Estoque", ""); self.estoque_var.set(initial_estoque if pd.notna(initial_estoque) else ""); self._on_estoque_change(self.estoque_var.get()); initial_local = self.row_data.get("Local", ""); self.local_var.set(initial_local if pd.notna(initial_local) else "")
+        ctk.CTkLabel(self.conditional_frame, text="Estoque:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.estoque_var = ctk.StringVar()
+        self.estoque_menu = ctk.CTkOptionMenu(
+            self.conditional_frame, variable=self.estoque_var,
+            values=["", "Estoque 1", "Estoque 2"], command=self._on_estoque_change
+        )
+        self.estoque_menu.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
+        ctk.CTkLabel(self.conditional_frame, text="Local:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        self.local_var = ctk.StringVar()
+        self.local_menu = ctk.CTkOptionMenu(self.conditional_frame, variable=self.local_var, values=[""])
+        self.local_menu.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+        self.local_menu.configure(state="disabled")
+
     def _on_estoque_change(self, selected_estoque):
-        if selected_estoque in self.locais_estoque: self.local_menu.configure(values=self.locais_estoque[selected_estoque], state="normal")
-        else: self.local_menu.configure(values=[""], state="disabled"); self.local_var.set("")
+        if selected_estoque in self.locais_estoque:
+            self.local_menu.configure(values=self.locais_estoque[selected_estoque], state="normal")
+        else:
+            self.local_menu.configure(values=[""], state="disabled")
+            self.local_var.set("")
+
     def _create_em_uso_fields(self):
-        ctk.CTkLabel(self.conditional_frame, text="Data de Retirada:").grid(row=0, column=0, padx=10, pady=10, sticky="w"); 
-        self.data_retirada_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="DD/MM/AAAA"); 
+        ctk.CTkLabel(self.conditional_frame, text="Data de Retirada:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.data_retirada_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="DD/MM/AAAA")
         self.data_retirada_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
-        initial_data_retirada = self.row_data.get("Data Retirada", ""); 
-        self.data_retirada_entry.insert(0, initial_data_retirada if pd.notna(initial_data_retirada) else "")
-        ctk.CTkLabel(self.conditional_frame, text="Motivo:").grid(row=1, column=0, padx=10, pady=10, sticky="w");
+
+        ctk.CTkLabel(self.conditional_frame, text="Motivo:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         self.motivo_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="Ex: Análise, Amostra para cliente...")
         self.motivo_entry.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
-        initial_motivo = self.row_data.get("Motivo", "");
-        self.motivo_entry.insert(0, initial_motivo if pd.notna(initial_motivo) else "")
+
     def _create_devolvido_fields(self):
-        ctk.CTkLabel(self.conditional_frame, text="Data Devolução:").grid(row=0, column=0, padx=10, pady=10, sticky="w"); self.data_devolucao_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="DD/MM/AAAA"); self.data_devolucao_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew"); initial_data = self.row_data.get("Data devoluçao", ""); self.data_devolucao_entry.insert(0, initial_data if pd.notna(initial_data) else "")
+        ctk.CTkLabel(self.conditional_frame, text="Data Devolução:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.data_devolucao_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="DD/MM/AAAA")
+        self.data_devolucao_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
     def _create_descarte_fields(self):
-        ctk.CTkLabel(self.conditional_frame, text="Data Descarte:").grid(row=0, column=0, padx=10, pady=10, sticky="w"); self.data_descarte_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="DD/MM/AAAA"); self.data_descarte_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew"); initial_data = self.row_data.get("Data Descarte", ""); self.data_descarte_entry.insert(0, initial_data if pd.notna(initial_data) else "")
+        ctk.CTkLabel(self.conditional_frame, text="Data Descarte:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.data_descarte_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="DD/MM/AAAA")
+        self.data_descarte_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
     def _on_confirm(self):
-        updated_values = {}; selected_estado = self.estado_var.get()
-        for col in COLUNAS_MODIFICAVEIS: updated_values[col] = ''
+        updated_values = {col: '' for col in COLUNAS_MODIFICAVEIS}
+        selected_estado = self.estado_var.get()
         updated_values['Estado'] = selected_estado
+        updated_values['Operador'] = self.parent_app.current_user
+
         if selected_estado == "Estocado":
-            estoque = self.estoque_var.get(); local = self.local_var.get()
-            if not estoque or not local: messagebox.showerror("Erro", "Campos 'Estoque' e 'Local' são obrigatórios.", parent=self); return
-            updated_values['Estoque'] = estoque; updated_values['Local'] = local
-        elif selected_estado == "Em uso": 
+            estoque = self.estoque_var.get()
+            local = self.local_var.get()
+            if not estoque or not local:
+                messagebox.showerror("Erro", "Campos 'Estoque' e 'Local' são obrigatórios.", parent=self)
+                return
+            updated_values['Estoque'] = estoque
+            updated_values['Local'] = local
+        elif selected_estado == "Em uso":
             updated_values['Data Retirada'] = self.data_retirada_entry.get()
             updated_values['Motivo'] = self.motivo_entry.get()
-        elif selected_estado == "Devolvido": updated_values['Data devoluçao'] = self.data_devolucao_entry.get()
-        elif selected_estado == "Descarte": updated_values['Data Descarte'] = self.data_descarte_entry.get()
-        self.parent_app.update_row_data(self.original_index, updated_values); self.destroy()
+        elif selected_estado == "Devolvido":
+            updated_values['Data devoluçao'] = self.data_devolucao_entry.get()
+        elif selected_estado == "Descarte":
+            updated_values['Data Descarte'] = self.data_descarte_entry.get()
+
+        # aplica as alterações em todos os lotes selecionados
+        for idx in self.indices:
+            self.parent_app.update_row_data(idx, updated_values)
+
+        self.destroy()
 
 # --- JANELA PRINCIPAL DA APLICAÇÃO ---
 class StockManagerApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, username):
         super().__init__()
+        self.current_user = username
         self.title("Gerenciador de Estoque CUCALA v1.0")
-        self.geometry("1440x800")
+        self.geometry("1440x780")
         self.df_original = None
         self.active_filters = {'isin': {}, 'gte': {}}
         self.planilha_path = None
@@ -428,7 +524,11 @@ class StockManagerApp(ctk.CTk):
 
     def open_filter_panel(self, mode):
         if mode == "lote":
-            cols = ['SELLER', 'BUYER', 'GIN LOCATION', 'FAZENDA(FARM NAME)', 'LOT NO.']
+            cols = [
+             'SELLER', 'BUYER', 'GIN LOCATION',
+             'FAZENDA(FARM NAME)', 'LOT NO.',
+             'NUMBER', 'REF.CUCALA'
+            ]
             FilterWindow(self, self.df_original, self.active_filters, cols)
         elif mode == "amostra": AmostraFilterWindow(self, self.active_filters)
     
@@ -458,10 +558,14 @@ class StockManagerApp(ctk.CTk):
 
     def abrir_janela_movimentacao(self):
         selected_items = self.tree.selection()
-        if not selected_items: messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione uma linha.", parent=self); return
-        if len(selected_items) > 1: messagebox.showwarning("Seleção Múltipla", "Selecione apenas uma linha.", parent=self); return
-        original_index = int(selected_items[0]); row_data = self.df_original.loc[original_index].to_dict()
-        MovementWindow(self, original_index, row_data)
+        if not selected_items:
+            messagebox.showwarning("Nenhuma Seleção", "Por favor, selecione ao menos um lote.", parent=self)
+            return
+
+        indices = [int(i) for i in selected_items]
+        rows_data = [self.df_original.loc[idx].to_dict() for idx in indices]
+
+        MovementWindow(self, indices, rows_data)
 
     def abrir_janela_descarte_massa(self):
         if self.df_original is None: return
@@ -480,6 +584,7 @@ class StockManagerApp(ctk.CTk):
             indices = df[condicao].index
             if not indices.empty:
                 df.loc[indices, 'Estado'] = 'Descarte'; df.loc[indices, 'Data Descarte'] = data_descarte
+                df.loc[indices, 'Operador'] = self.current_user
                 encontrados += len(indices)
             else:
                 nao_encontrados.append(f"{lote_bruto} | {number}")
