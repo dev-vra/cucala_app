@@ -15,7 +15,7 @@ jobs:
         os: [macos-13, macos-latest]
         include:
           - os: macos-13
-            target_arch: x86_64
+            target_arch: x64
             output_suffix: "-intel"
           - os: macos-latest
             target_arch: arm64
