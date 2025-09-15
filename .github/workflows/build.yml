@@ -12,11 +12,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, macos-latest]
+        os: [macos-latest]
         include:
-          - os: macos-13
-            target_arch: x64
-            output_suffix: "-intel"
           - os: macos-latest
             target_arch: arm64
             output_suffix: "-arm64"
