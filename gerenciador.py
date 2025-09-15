@@ -116,15 +116,26 @@ class LoginWindow(ctk.CTk):
 # --- JANELAS DE FILTRO E AÇÕES ---
 class ConsultaEstoqueWindow(ctk.CTkToplevel):
     def __init__(self, parent, dataframe):
-        super().__init__(parent); self.transient(parent); self.title("Consulta de Estoque"); self.geometry("800x600"); self.grab_set()
+        super().__init__(parent)
+        self.transient(parent)
+        self.title("Consulta de Estoque")
+        self.geometry("800x600")
+        self.grab_set()
+        
         self.full_df = dataframe
-        main_frame = ctk.CTkFrame(self); main_frame.pack(expand=True, fill="both", padx=15, pady=15)
-        filter_frame = ctk.CTkFrame(main_frame, fg_color="transparent"); filter_frame.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(filter_frame, text="Filtrar por Estoque:").pack(side="left")
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(expand=True, fill="both", padx=15, pady=15)
+
+        # Frame para os filtros
+        filter_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        filter_frame.pack(fill="x", pady=(0, 10))
+
+        # Carrega os locais do JSON
         with open(resource_path("data/locais.json"), "r", encoding="utf-8") as f:
             self.locais_estoque = json.load(f)
 
-        # Filtro Estoque
+        # --- Filtro Estoque ---
+        # CORRIGIDO: Removi a primeira chamada duplicada do Label que causava o texto repetido.
         ctk.CTkLabel(filter_frame, text="Filtrar por Estoque:").pack(side="left")
         self.estoque_filter_var = ctk.StringVar(value="Todos")
         estoques = ["Todos"] + list(self.locais_estoque.keys())
@@ -134,9 +145,10 @@ class ConsultaEstoqueWindow(ctk.CTkToplevel):
         )
         self.estoque_filter_menu.pack(side="left", padx=10)
 
-        # Filtro Local
+        # --- Filtro Local ---
         ctk.CTkLabel(filter_frame, text="Filtrar por Local:").pack(side="left")
         self.local_filter_var = ctk.StringVar(value="Todos")
+        # Criamos a lista de todos os locais únicos
         locais = ["Todos"] + sorted({loc for locs in self.locais_estoque.values() for loc in locs})
         self.local_filter_menu = ctk.CTkOptionMenu(
             filter_frame, variable=self.local_filter_var,
@@ -144,28 +156,82 @@ class ConsultaEstoqueWindow(ctk.CTkToplevel):
         )
         self.local_filter_menu.pack(side="left", padx=10)
 
+        # ADICIONADO: Frame para conter a tabela (Treeview)
+        tree_frame = ctk.CTkFrame(main_frame)
+        tree_frame.pack(expand=True, fill="both", pady=(10, 0))
+
+        # ADICIONADO: Chamadas para criar e popular a tabela na inicialização da janela
+        self._setup_treeview(tree_frame)
+        self._update_table()
+
 
     def _setup_treeview(self, parent_frame):
-        style = ttk.Style(); style.theme_use("default"); style.configure("Treeview", background="#D3D3D3", foreground="black", rowheight=25, fieldbackground="#D3D3D3"); style.map('Treeview', background=[('selected', '#347083')])
-        self.tree = ttk.Treeview(parent_frame, style="Treeview"); self.tree["columns"] = ("Local", "Total_Amostras", "Sellers")
-        self.tree.column("#0", width=0, stretch=tkinter.NO); self.tree.heading("#0", text="", anchor=tkinter.W)
-        self.tree.column("Local", anchor=tkinter.W, width=100); self.tree.heading("Local", text="Local", anchor=tkinter.W)
-        self.tree.column("Total_Amostras", anchor=tkinter.CENTER, width=150); self.tree.heading("Total_Amostras", text="Total de Amostras", anchor=tkinter.CENTER)
-        self.tree.column("Sellers", anchor=tkinter.W, width=500); self.tree.heading("Sellers", text="Sellers (Vendedores)", anchor=tkinter.W)
-        vsb = ttk.Scrollbar(parent_frame, orient="vertical", command=self.tree.yview); vsb.pack(side='right', fill='y')
-        hsb = ttk.Scrollbar(parent_frame, orient="horizontal", command=self.tree.xview); hsb.pack(side='bottom', fill='x')
-        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set); self.tree.pack(expand=True, fill='both')
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure("Treeview", background="#D3D3D3", foreground="black", rowheight=25, fieldbackground="#D3D3D3")
+        style.map('Treeview', background=[('selected', '#347083')])
+        
+        self.tree = ttk.Treeview(parent_frame, style="Treeview")
+        self.tree["columns"] = ("Local", "Total_Amostras", "Sellers", "Buyers")
+        
+        self.tree.column("#0", width=0, stretch=tkinter.NO)
+        self.tree.heading("#0", text="", anchor=tkinter.W)
+        
+        self.tree.column("Local", anchor=tkinter.W, width=80)
+        self.tree.heading("Local", text="Local", anchor=tkinter.W)
+        
+        self.tree.column("Total_Amostras", anchor=tkinter.CENTER, width=80)
+        self.tree.heading("Total_Amostras", text="Total de Amostras", anchor=tkinter.CENTER)
+        
+        self.tree.column("Sellers", anchor=tkinter.W, width=250)
+        self.tree.heading("Sellers", text="Sellers (Vendedores)", anchor=tkinter.W)
+
+        self.tree.column("Buyers", anchor=tkinter.W, width=250)
+        self.tree.heading("Buyers", text="Buyers (Compradores)", anchor=tkinter.W)
+        
+        vsb = ttk.Scrollbar(parent_frame, orient="vertical", command=self.tree.yview)
+        vsb.pack(side='right', fill='y')
+        hsb = ttk.Scrollbar(parent_frame, orient="horizontal", command=self.tree.xview)
+        hsb.pack(side='bottom', fill='x')
+        
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.tree.pack(expand=True, fill='both')
 
     def _update_table(self, filter_value=None):
-        for i in self.tree.get_children(): self.tree.delete(i)
+        # Limpa a tabela antes de atualizar
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        
+        # 1. Filtra apenas as amostras com estado 'Estocado'
         df_estocado = self.full_df[self.full_df['Estado'] == 'Estocado'].copy()
-        if df_estocado.empty: return
+        if df_estocado.empty:
+            return
+
+        df_filtrado = df_estocado # Começa com todos os estocados
+
+        # 2. Aplica o filtro de 'Estoque' (Estoque 1, Estoque 2, etc.)
         selected_estoque = self.estoque_filter_var.get()
-        if selected_estoque != "Todos": df_filtrado = df_estocado[df_estocado['Estoque'] == selected_estoque]
-        else: df_filtrado = df_estocado
-        if df_filtrado.empty: return
-        summary = df_filtrado.groupby('Local').agg(Total_Amostras=('SELLER', 'size'), Sellers=('SELLER', lambda x: ', '.join(sorted(x.dropna().unique())))).reset_index()
-        for index, row in summary.iterrows(): self.tree.insert("", "end", values=(row['Local'], row['Total_Amostras'], row['Sellers']))
+        if selected_estoque != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['Estoque'] == selected_estoque]
+
+        # 3. ADICIONADO: Aplica o filtro de 'Local' sobre o resultado anterior
+        selected_local = self.local_filter_var.get()
+        if selected_local != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['Local'] == selected_local]
+
+        if df_filtrado.empty:
+            return
+        
+        # Agrupa os resultados para a exibição
+        summary = df_filtrado.groupby('Local').agg(
+            Total_Amostras=('SELLER', 'size'),
+            Sellers=('SELLER', lambda x: ', '.join(sorted(x.dropna().unique()))),
+            Buyers=('BUYER', lambda x: ', '.join(sorted(x.dropna().unique())))
+        ).reset_index()
+        
+        # Insere os dados na tabela
+        for index, row in summary.iterrows():
+            self.tree.insert("", "end", values=(row['Local'], row['Total_Amostras'], row['Sellers'], row['Buyers']))
 
 class DescarteMassaWindow(ctk.CTkToplevel):
     def __init__(self, parent):

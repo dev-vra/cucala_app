@@ -34,21 +34,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
-      - name: Build Consolidador
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            pyinstaller --noconfirm --icon=assets/icon.icns consolidador.spec
-          else
-            pyinstaller --noconfirm --icon=assets/icon.ico consolidador.spec
-          fi
-
-      - name: Build Gerenciador
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            pyinstaller --noconfirm --icon=assets/icon.icns gerenciador.spec
-          else
-            pyinstaller --noconfirm --icon=assets/icon.ico gerenciador.spec
-          fi
+          - name: Build Consolidador
+          run: |
+            if [[ "$RUNNER_OS" == "macOS" ]]; then
+              # REMOVA --icon=assets/icon.icns daqui
+              pyinstaller --noconfirm consolidador.spec
+            else
+              # E daqui também
+              pyinstaller --noconfirm consolidador.spec
+            fi
+  
+          - name: Build Gerenciador
+            run: |
+              if [[ "$RUNNER_OS" == "macOS" ]]; then
+                # REMOVA --icon=assets/icon.icns daqui
+                pyinstaller --noconfirm gerenciador.spec
+              else
+                # E daqui também
+                pyinstaller --noconfirm gerenciador.spec
+              fi
 
       # Compactar builds
       - name: Package Consolidador

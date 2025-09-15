@@ -3,11 +3,12 @@
 block_cipher = None
 
 a = Analysis(
-    ['appconsolidador.py'],  # Nome do seu script principal
+    ['consolidador.py'],  # Nome do seu script principal
     pathex=[],
     binaries=[],
     datas=[
         ('assets', 'assets')  # Correto: Inclui a pasta de assets
+        ('data', 'data')  # Correto: Inclui a pasta de assets
     ],
     hiddenimports=[
         'pandas',
