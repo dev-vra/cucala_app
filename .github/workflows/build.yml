@@ -29,65 +29,48 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # Este passo termina aqui. O próximo passo deve ter a mesma indentação.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
-          - name: Build Consolidador
-          run: |
-            if [[ "$RUNNER_OS" == "macOS" ]]; then
-              # REMOVA --icon=assets/icon.icns daqui
-              pyinstaller --noconfirm consolidador.spec
-            else
-              # E daqui também
-              pyinstaller --noconfirm consolidador.spec
-            fi
-  
-          - name: Build Gerenciador
-            run: |
-              if [[ "$RUNNER_OS" == "macOS" ]]; then
-                # REMOVA --icon=assets/icon.icns daqui
-                pyinstaller --noconfirm gerenciador.spec
-              else
-                # E daqui também
-                pyinstaller --noconfirm gerenciador.spec
-              fi
+      # CORREÇÃO: Este passo "- name:" está agora corretamente indentado.
+      - name: Build Consolidador
+        run: pyinstaller --noconfirm consolidador.spec
 
-      # Compactar builds
+      # CORREÇÃO: Este passo "- name:" também está corretamente indentado.
+      - name: Build Gerenciador
+        run: pyinstaller --noconfirm gerenciador.spec
+
       - name: Package Consolidador
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            powershell Compress-Archive -Path dist/consolidador/* -DestinationPath dist/consolidador-${{ runner.os }}.zip
+            powershell Compress-Archive -Path dist/Consolidador CUCALA/* -DestinationPath dist/consolidador-${{ runner.os }}.zip
           else
-            mkdir -p package/Consolidador/CucalaApps
-            mv dist/consolidador/* package/Consolidador/CucalaApps/
-            tar -czvf dist/consolidador-${{ runner.os }}.tar.gz -C package/Consolidador .
+            tar -czvf dist/consolidador-${{ runner.os }}.tar.gz -C dist/Consolidador CUCALA .
           fi
 
       - name: Package Gerenciador
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            powershell Compress-Archive -Path dist/gerenciador/* -DestinationPath dist/gerenciador-${{ runner.os }}.zip
+            powershell Compress-Archive -Path dist/Gerenciador CUCALA/* -DestinationPath dist/gerenciador-${{ runner.os }}.zip
           else
-            mkdir -p package/Gerenciador/CucalaApps
-            mv dist/gerenciador/* package/Gerenciador/CucalaApps/
-            tar -czvf dist/gerenciador-${{ runner.os }}.tar.gz -C package/Gerenciador .
+            tar -czvf dist/gerenciador-${{ runner.os }}.tar.gz -C dist/Gerenciador CUCALA .
           fi
-
 
       - name: Upload Consolidador
         uses: actions/upload-artifact@v4
         with:
           name: Consolidador-${{ runner.os }}
           path: |
-            dist/consolidador-${{ runner.os }}.zip
-            dist/consolidador-${{ runner.os }}.tar.gz
+            dist/consolidador-*.zip
+            dist/consolidador-*.tar.gz
 
       - name: Upload Gerenciador
         uses: actions/upload-artifact@v4
         with:
           name: Gerenciador-${{ runner.os }}
           path: |
-            dist/gerenciador-${{ runner.os }}.zip
-            dist/gerenciador-${{ runner.os }}.tar.gz
+            dist/gerenciador-*.zip
+            dist/gerenciador-*.tar.gz
