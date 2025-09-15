@@ -1,0 +1,55 @@
+name: Build Apps Cucala
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-13, macos-14]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build Consolidador
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            pyinstaller --noconfirm --icon=assets/icon.icns consolidador.spec
+          else
+            pyinstaller --noconfirm --icon=assets/icon.ico consolidador.spec
+          fi
+
+      - name: Build Gerenciador
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            pyinstaller --noconfirm --icon=assets/icon.icns gerenciador.spec
+          else
+            pyinstaller --noconfirm --icon=assets/icon.ico gerenciador.spec
+          fi
+
+      - name: Upload Consolidador
+        uses: actions/upload-artifact@v3
+        with:
+          name: Consolidador-${{ runner.os }}
+          path: dist/consolidador/
+
+      - name: Upload Gerenciador
+        uses: actions/upload-artifact@v3
+        with:
+          name: Gerenciador-${{ runner.os }}
+          path: dist/gerenciador/
