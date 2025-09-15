@@ -52,22 +52,18 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=True,
-    target_arch=target_arch,  # Usa a arquitetura de destino
+    target_arch=target_arch,
     codesign_identity=None,
     entitlements_file=None,
     icon='assets/icon.icns',
 )
 
 # Configurações de coleta
-coll = COLLECT(
+app = BUNDLE(
     exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name=app_name,
+    name=f'{app_name}.app',
+    icon='assets/icon.icns',
+    bundle_identifier=bundle_identifier,
     info_plist={
         'CFBundleName': app_name,
         'CFBundleDisplayName': app_name,
@@ -79,5 +75,4 @@ coll = COLLECT(
         'NSRequiresAquaSystemAppearance': 'False',
         'LSMinimumSystemVersion': '10.15.0',
     },
-    icon='assets/icon.icns',
 )
