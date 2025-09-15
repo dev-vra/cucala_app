@@ -11,58 +11,114 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, macos-14]  # Intel e Apple Silicon
+        os: [macos-latest]  # Usa a versão mais recente do macOS
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        path: ~/.cache/pyinstaller
-        key: ${{ runner.os }}-pyinstaller-${{ hashFiles('**/*.spec') }}
+        cache: 'pip'
+        cache-dependency-path: '**/requirements.txt'
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
-        python -m pip install --upgrade pip
+        brew install upx
+        pip install --upgrade pip setuptools wheel
+
+    - name: Install Python dependencies
+      run: |
         pip install --prefer-binary -r requirements.txt
+        pip install pyinstaller==5.13.2
 
     - name: Build executables
       run: |
+        # Cria diretório de saída
+        mkdir -p dist
+        
+        # Build do Consolidador
         pyinstaller --noconfirm consolidador.spec
+        
+        # Build do Gerenciador
         pyinstaller --noconfirm gerenciador.spec
 
-    - name: Package .app bundles
+    - name: Create .app bundles
       run: |
-        # Criar Consolidador.app
-        mkdir -p dist/Consolidador.app/Contents/MacOS
-        mkdir -p dist/Consolidador.app/Contents/Resources
-        cp dist/Consolidador/Consolidador dist/Consolidador.app/Contents/MacOS/
-        cp -r dist/Consolidador/assets dist/Consolidador.app/Contents/Resources/
-        cp -r dist/Consolidador/data dist/Consolidador.app/Contents/Resources/
-        cp assets/icon.icns dist/Consolidador.app/Contents/Resources/
-        cp InfoConsolidador.plist dist/Consolidador.app/Contents/Info.plist
+        # Cria diretórios necessários
+        mkdir -p "dist/Consolidador.app/Contents/MacOS"
+        mkdir -p "dist/Consolidador.app/Contents/Resources"
+        mkdir -p "dist/Gerenciador.app/Contents/MacOS"
+        mkdir -p "dist/Gerenciador.app/Contents/Resources"
+        
+        # Copia os arquivos para o bundle do Consolidador
+        cp -r dist/Consolidador/* "dist/Consolidador.app/Contents/MacOS/"
+        cp -r assets "dist/Consolidador.app/Contents/Resources/"
+        cp -r data "dist/Consolidador.app/Contents/Resources/"
+        cp assets/icon.icns "dist/Consolidador.app/Contents/Resources/AppIcon.icns"
+        cp InfoConsolidador.plist "dist/Consolidador.app/Contents/Info.plist"
+        
+        # Copia os arquivos para o bundle do Gerenciador
+        cp -r dist/Gerenciador/* "dist/Gerenciador.app/Contents/MacOS/"
+        cp -r assets "dist/Gerenciador.app/Contents/Resources/"
+        cp -r data "dist/Gerenciador.app/Contents/Resources/"
+        cp assets/icon.icns "dist/Gerenciador.app/Contents/Resources/AppIcon.icns"
+        cp InfoGerenciador.plist "dist/Gerenciador.app/Contents/Info.plist"
+        
+        # Ajusta permissões
+        chmod +x "dist/Consolidador.app/Contents/MacOS/Consolidador"
+        chmod +x "dist/Gerenciador.app/Contents/MacOS/Gerenciador"
 
-        # Criar Gerenciador.app
-        mkdir -p dist/Gerenciador.app/Contents/MacOS
-        mkdir -p dist/Gerenciador.app/Contents/Resources
-        cp dist/Gerenciador/Gerenciador dist/Gerenciador.app/Contents/MacOS/
-        cp -r dist/Gerenciador/assets dist/Gerenciador.app/Contents/Resources/
-        cp -r dist/Gerenciador/data dist/Gerenciador.app/Contents/Resources/
-        cp assets/icon.icns dist/Gerenciador.app/Contents/Resources/
-        cp InfoGerenciador.plist dist/Gerenciador.app/Contents/Info.plist
-
-        # Compactar apps
-        cd dist
-        zip -r Consolidador-${{ matrix.os }}.zip Consolidador.app
-        zip -r Gerenciador-${{ matrix.os }}.zip Gerenciador.app
-
+    - name: Create DMG (opcional)
+      if: success()
+      run: |
+        # Instala create-dmg se necessário
+        brew install create-dmg
+        
+        # Cria DMG para Consolidador
+        create-dmg \
+          --volname "Consolidador" \
+          --volicon "assets/icon.icns" \
+          --window-pos 200 120 \
+          --window-size 800 400 \
+          --icon-size 100 \
+          --icon "Consolidador.app" 200 190 \
+          --hide-extension "Consolidador.app" \
+          --app-drop-link 600 185 \
+          "dist/Consolidador.dmg" \
+          "dist/Consolidador.app"
+          
+        # Cria DMG para Gerenciador
+        create-dmg \
+          --volname "Gerenciador" \
+          --volicon "assets/icon.icns" \
+          --window-pos 200 120 \
+          --window-size 800 400 \
+          --icon-size 100 \
+          --icon "Gerenciador.app" 200 190 \
+          --hide-extension "Gerenciador.app" \
+          --app-drop-link 600 185 \
+          "dist/Gerenciador.dmg" \
+          "dist/Gerenciador.app"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: apps-${{ matrix.os }}
+        name: macos-apps
         path: |
-          dist/Consolidador-${{ matrix.os }}.zip
-          dist/Gerenciador-${{ matrix.os }}.zip
+          dist/*.dmg
+          dist/*.app
+        retention-days: 7
+
+    - name: Create release (opcional)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/Consolidador.dmg
+          dist/Gerenciador.dmg
+        draft: false
+        prerelease: false
+        generate_release_notes: true
