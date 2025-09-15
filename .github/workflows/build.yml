@@ -1,4 +1,4 @@
-name: Build macOS Apps
+name: Build and Package
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, macos-latest]  # macOS 13 (Intel) e latest (Apple Silicon)
+        os: [macos-13, macos-latest]
         include:
           - os: macos-13
             target_arch: x86_64
@@ -26,20 +26,15 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
-        python-version: "3.11"
-        cache: 'pip'
-        cache-dependency-path: '**/requirements.txt'
+        python-version: '3.11'
+        architecture: ${{ matrix.target_arch }}
 
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
-        brew install upx
-        pip install --upgrade pip setuptools wheel
-
-    - name: Install Python dependencies
-      run: |
-        pip install --prefer-binary -r requirements.txt
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
         pip install pyinstaller==5.13.2
 
     - name: Build executables
@@ -49,11 +44,9 @@ jobs:
         # Cria diretório de saída
         mkdir -p dist
         
-        # Build do Consolidador
-        pyinstaller --noconfirm consolidador.spec
-        
-        # Build do Gerenciador
-        pyinstaller --noconfirm gerenciador.spec
+        # Gera o executável
+        pyinstaller --clean --noconfirm consolidador.spec
+        pyinstaller --clean --noconfirm gerenciador.spec
 
     - name: Create .app bundles
       run: |
@@ -63,43 +56,16 @@ jobs:
         mkdir -p "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS"
         mkdir -p "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources"
         
-        # Copia os arquivos para o bundle do Consolidador
-        cp -r dist/Consolidador/* "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/MacOS/"
-        cp -r assets "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources/"
-        cp -r data "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources/"
-        cp assets/icon.icns "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources/AppIcon.icns"
-        cp InfoConsolidador.plist "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Info.plist"
-        
-        # Copia os arquivos para o bundle do Gerenciador
-        cp -r dist/Gerenciador/* "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS/"
-        cp -r assets "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources/"
-        cp -r data "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources/"
-        cp assets/icon.icns "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources/AppIcon.icns"
-        cp InfoGerenciador.plist "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Info.plist"
-        
-        # Ajusta permissões
-        chmod +x "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/MacOS/Consolidador"
-        chmod +x "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS/Gerenciador"
+        # Move os apps para os diretórios corretos
+        mv "dist/Consolidador.app" "dist/Consolidador${{ matrix.output_suffix }}.app"
+        mv "dist/Gerenciador.app" "dist/Gerenciador${{ matrix.output_suffix }}.app"
 
     - name: Create universal app bundles (only on final arch)
       if: matrix.target_arch == 'arm64'
       run: |
         # Cria um app universal combinando as duas arquiteturas
-        mkdir -p "dist/Consolidador-universal.app/Contents/MacOS"
-        mkdir -p "dist/Consolidador-universal.app/Contents/Resources"
-        mkdir -p "dist/Gerenciador-universal.app/Contents/MacOS"
-        mkdir -p "dist/Gerenciador-universal.app/Contents/Resources"
-        
-        # Copia os recursos
-        cp -r assets "dist/Consolidador-universal.app/Contents/Resources/"
-        cp -r data "dist/Consolidador-universal.app/Contents/Resources/"
-        cp assets/icon.icns "dist/Consolidador-universal.app/Contents/Resources/AppIcon.icns"
-        cp InfoConsolidador.plist "dist/Consolidador-universal.app/Contents/Info.plist"
-        
-        cp -r assets "dist/Gerenciador-universal.app/Contents/Resources/"
-        cp -r data "dist/Gerenciador-universal.app/Contents/Resources/"
-        cp assets/icon.icns "dist/Gerenciador-universal.app/Contents/Resources/AppIcon.icns"
-        cp InfoGerenciador.plist "dist/Gerenciador-universal.app/Contents/Info.plist"
+        mkdir -p "dist/Consolidador-universal.app"
+        mkdir -p "dist/Gerenciador-universal.app"
         
         # Cria o executável universal
         lipo -create \
@@ -111,6 +77,14 @@ jobs:
           "dist/Gerenciador-intel.app/Contents/MacOS/Gerenciador" \
           "dist/Gerenciador-arm64.app/Contents/MacOS/Gerenciador" \
           -output "dist/Gerenciador-universal.app/Contents/MacOS/Gerenciador"
+        
+        # Copia os recursos
+        cp -R "dist/Consolidador-arm64.app/Contents/Resources/"* "dist/Consolidador-universal.app/Contents/Resources/"
+        cp -R "dist/Gerenciador-arm64.app/Contents/Resources/"* "dist/Gerenciador-universal.app/Contents/Resources/"
+        
+        # Cria os diretórios necessários
+        mkdir -p "dist/Consolidador-universal.app/Contents/MacOS"
+        mkdir -p "dist/Gerenciador-universal.app/Contents/MacOS"
         
         # Ajusta permissões
         chmod +x "dist/Consolidador-universal.app/Contents/MacOS/Consolidador"
