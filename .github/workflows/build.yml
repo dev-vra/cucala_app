@@ -9,14 +9,8 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-13, macos-latest]
-        include:
-          - os: macos-latest
-            target_arch: arm64
-            output_suffix: "-arm64"
+    # A compilação agora roda apenas em macos-latest (Apple Silicon)
+    runs-on: macos-latest
 
     steps:
     - name: Checkout code
@@ -26,7 +20,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        architecture: ${{ matrix.target_arch }}
+        # Arquitetura definida diretamente como arm64
+        architecture: 'arm64'
 
     - name: Install dependencies
       run: |
@@ -35,108 +30,68 @@ jobs:
         pip install --no-cache-dir pyinstaller==6.3.0
 
     - name: Build executables
-      env:
-        TARGET_ARCH: ${{ matrix.target_arch }}
       run: |
-        # Cria diretório de saída
-        mkdir -p dist
-        
-        # Gera o executável
+        # Gera o executável para arm64
         pyinstaller --clean --noconfirm consolidador.spec
-        pyinstaller --clean --noconfirm gerenciador.spec
+        pyinstaller --noconfirm gerenciador.spec
 
-    - name: Create .app bundles
+    - name: Rename .app bundles
       run: |
-        # Cria diretórios necessários
-        mkdir -p "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/MacOS"
-        mkdir -p "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources"
-        mkdir -p "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS"
-        mkdir -p "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources"
-        
-        # Move os apps para os diretórios corretos
-        mv "dist/Consolidador.app" "dist/Consolidador${{ matrix.output_suffix }}.app"
-        mv "dist/Gerenciador.app" "dist/Gerenciador${{ matrix.output_suffix }}.app"
+        # Renomeia os bundles para refletir a arquitetura
+        mv "dist/Consolidador.app" "dist/Consolidador-arm64.app"
+        mv "dist/Gerenciador.app" "dist/Gerenciador-arm64.app"
 
-    - name: Create universal app bundles (only on final arch)
-      if: matrix.target_arch == 'arm64'
-      run: |
-        # Cria um app universal combinando as duas arquiteturas
-        mkdir -p "dist/Consolidador-universal.app"
-        mkdir -p "dist/Gerenciador-universal.app"
-        
-        # Cria o executável universal
-        lipo -create \
-          "dist/Consolidador-intel.app/Contents/MacOS/Consolidador" \
-          "dist/Consolidador-arm64.app/Contents/MacOS/Consolidador" \
-          -output "dist/Consolidador-universal.app/Contents/MacOS/Consolidador"
-          
-        lipo -create \
-          "dist/Gerenciador-intel.app/Contents/MacOS/Gerenciador" \
-          "dist/Gerenciador-arm64.app/Contents/MacOS/Gerenciador" \
-          -output "dist/Gerenciador-universal.app/Contents/MacOS/Gerenciador"
-        
-        # Copia os recursos
-        cp -R "dist/Consolidador-arm64.app/Contents/Resources/"* "dist/Consolidador-universal.app/Contents/Resources/"
-        cp -R "dist/Gerenciador-arm64.app/Contents/Resources/"* "dist/Gerenciador-universal.app/Contents/Resources/"
-        
-        # Cria os diretórios necessários
-        mkdir -p "dist/Consolidador-universal.app/Contents/MacOS"
-        mkdir -p "dist/Gerenciador-universal.app/Contents/MacOS"
-        
-        # Ajusta permissões
-        chmod +x "dist/Consolidador-universal.app/Contents/MacOS/Consolidador"
-        chmod +x "dist/Gerenciador-universal.app/Contents/MacOS/Gerenciador"
+    # ETAPA REMOVIDA: A criação de app universal foi removida pois não há mais build Intel.
 
     - name: Create DMG
-      if: matrix.target_arch == 'arm64'  # Só cria o DMG uma vez
       run: |
-        # Instala create-dmg
+        # Instala a ferramenta para criar o DMG
         brew install create-dmg
         
-        # Cria DMG para Consolidador Universal
+        # Cria DMG para Consolidador (arm64)
         create-dmg \
           --volname "Consolidador" \
           --volicon "assets/icon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
-          --icon "Consolidador-universal.app" 200 190 \
-          --hide-extension "Consolidador-universal.app" \
+          --icon "Consolidador-arm64.app" 200 190 \
+          --hide-extension "Consolidador-arm64.app" \
           --app-drop-link 600 185 \
           "dist/Consolidador.dmg" \
-          "dist/Consolidador-universal.app"
+          "dist/Consolidador-arm64.app"
           
-        # Cria DMG para Gerenciador Universal
+        # Cria DMG para Gerenciador (arm64)
         create-dmg \
           --volname "Gerenciador" \
           --volicon "assets/icon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
-          --icon "Gerenciador-universal.app" 200 190 \
-          --hide-extension "Gerenciador-universal.app" \
+          --icon "Gerenciador-arm64.app" 200 190 \
+          --hide-extension "Gerenciador-arm64.app" \
           --app-drop-link 600 185 \
           "dist/Gerenciador.dmg" \
-          "dist/Gerenciador-universal.app"
+          "dist/Gerenciador-arm64.app"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: macos-apps-${{ matrix.target_arch }}
+        # O nome do artefato agora reflete a arquitetura única
+        name: macos-apps-arm64
         path: |
           dist/*.app
           dist/*.dmg
         retention-days: 7
 
     - name: Create release (on tag)
-      if: startsWith(github.ref, 'refs/tags/v') && matrix.target_arch == 'arm64'
+      # A condição foi simplificada, pois agora só há um job
+      if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
         files: |
           dist/Consolidador.dmg
           dist/Gerenciador.dmg
-          dist/Consolidador-universal.app/**/*
-          dist/Gerenciador-universal.app/**/*
         draft: false
         prerelease: false
         generate_release_notes: true
