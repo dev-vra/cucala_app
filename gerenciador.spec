@@ -7,14 +7,18 @@ app_name = 'Gerenciador'
 app_version = '1.0.0'
 bundle_identifier = 'com.cucala.gerenciador'
 
+# Obter a arquitetura de destino do ambiente
+import os
+target_arch = os.environ.get('TARGET_ARCH', None)
+
 # Configurações de análise
 a = Analysis(
     ['gerenciador.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('assets/*', 'assets'),   # Inclui os arquivos de assets
-        ('data/*.json', 'data'),  # Inclui os arquivos de dados
+        ('assets/*', 'assets'),
+        ('data/*.json', 'data'),
     ],
     hiddenimports=[
         'pandas', 'openpyxl', 'customtkinter', 'PIL',
@@ -45,57 +49,35 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,  # Desativa o console para aplicativo GUI
+    console=False,
     disable_windowed_traceback=False,
-    argv_emulation=True,  # Habilita o tratamento de eventos do macOS
-    target_arch=None,     # None para arquitetura nativa
+    argv_emulation=True,
+    target_arch=target_arch,  # Usa a arquitetura de destino
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.icns',  # Ícone correto para macOS
+    icon='assets/icon.icns',
 )
 
-# Configurações do bundle para macOS
-app = BUNDLE(
+# Configurações de coleta
+coll = COLLECT(
     exe,
-    name=f'{app_name}.app',
-    icon='assets/icon.icns',
-    bundle_identifier=bundle_identifier,
-    version=app_version,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name=app_name,
     info_plist={
         'CFBundleName': app_name,
         'CFBundleDisplayName': app_name,
         'CFBundleVersion': app_version,
         'CFBundleShortVersionString': app_version,
+        'CFBundleExecutable': app_name,
+        'CFBundleIdentifier': bundle_identifier,
         'NSHighResolutionCapable': 'True',
         'NSRequiresAquaSystemAppearance': 'False',
         'LSMinimumSystemVersion': '10.15.0',
     },
+    icon='assets/icon.icns',
 )
-
-# Configurações de coleta
-coll = COLLECT(
-    app,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Gerenciador',
-    info_plist='InfoGerenciador.plist',
-)
-
-# Configurações adicionais para macOS
-app.coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Gerenciador',
-)
-
-app.console = False
-app.iconfile = 'assets/icon.icns'

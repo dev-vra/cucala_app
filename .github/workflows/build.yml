@@ -5,13 +5,21 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest]  # Usa a versão mais recente do macOS
+        os: [macos-13, macos-latest]  # macOS 13 (Intel) e latest (Apple Silicon)
+        include:
+          - os: macos-13
+            target_arch: x86_64
+            output_suffix: "-intel"
+          - os: macos-latest
+            target_arch: arm64
+            output_suffix: "-arm64"
 
     steps:
     - name: Checkout code
@@ -35,6 +43,8 @@ jobs:
         pip install pyinstaller==5.13.2
 
     - name: Build executables
+      env:
+        TARGET_ARCH: ${{ matrix.target_arch }}
       run: |
         # Cria diretório de saída
         mkdir -p dist
@@ -48,77 +58,114 @@ jobs:
     - name: Create .app bundles
       run: |
         # Cria diretórios necessários
-        mkdir -p "dist/Consolidador.app/Contents/MacOS"
-        mkdir -p "dist/Consolidador.app/Contents/Resources"
-        mkdir -p "dist/Gerenciador.app/Contents/MacOS"
-        mkdir -p "dist/Gerenciador.app/Contents/Resources"
+        mkdir -p "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/MacOS"
+        mkdir -p "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources"
+        mkdir -p "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS"
+        mkdir -p "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources"
         
         # Copia os arquivos para o bundle do Consolidador
-        cp -r dist/Consolidador/* "dist/Consolidador.app/Contents/MacOS/"
-        cp -r assets "dist/Consolidador.app/Contents/Resources/"
-        cp -r data "dist/Consolidador.app/Contents/Resources/"
-        cp assets/icon.icns "dist/Consolidador.app/Contents/Resources/AppIcon.icns"
-        cp InfoConsolidador.plist "dist/Consolidador.app/Contents/Info.plist"
+        cp -r dist/Consolidador/* "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/MacOS/"
+        cp -r assets "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources/"
+        cp -r data "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources/"
+        cp assets/icon.icns "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Resources/AppIcon.icns"
+        cp InfoConsolidador.plist "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/Info.plist"
         
         # Copia os arquivos para o bundle do Gerenciador
-        cp -r dist/Gerenciador/* "dist/Gerenciador.app/Contents/MacOS/"
-        cp -r assets "dist/Gerenciador.app/Contents/Resources/"
-        cp -r data "dist/Gerenciador.app/Contents/Resources/"
-        cp assets/icon.icns "dist/Gerenciador.app/Contents/Resources/AppIcon.icns"
-        cp InfoGerenciador.plist "dist/Gerenciador.app/Contents/Info.plist"
+        cp -r dist/Gerenciador/* "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS/"
+        cp -r assets "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources/"
+        cp -r data "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources/"
+        cp assets/icon.icns "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Resources/AppIcon.icns"
+        cp InfoGerenciador.plist "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/Info.plist"
         
         # Ajusta permissões
-        chmod +x "dist/Consolidador.app/Contents/MacOS/Consolidador"
-        chmod +x "dist/Gerenciador.app/Contents/MacOS/Gerenciador"
+        chmod +x "dist/Consolidador${{ matrix.output_suffix }}.app/Contents/MacOS/Consolidador"
+        chmod +x "dist/Gerenciador${{ matrix.output_suffix }}.app/Contents/MacOS/Gerenciador"
 
-    - name: Create DMG (opcional)
-      if: success()
+    - name: Create universal app bundles (only on final arch)
+      if: matrix.target_arch == 'arm64'
       run: |
-        # Instala create-dmg se necessário
+        # Cria um app universal combinando as duas arquiteturas
+        mkdir -p "dist/Consolidador-universal.app/Contents/MacOS"
+        mkdir -p "dist/Consolidador-universal.app/Contents/Resources"
+        mkdir -p "dist/Gerenciador-universal.app/Contents/MacOS"
+        mkdir -p "dist/Gerenciador-universal.app/Contents/Resources"
+        
+        # Copia os recursos
+        cp -r assets "dist/Consolidador-universal.app/Contents/Resources/"
+        cp -r data "dist/Consolidador-universal.app/Contents/Resources/"
+        cp assets/icon.icns "dist/Consolidador-universal.app/Contents/Resources/AppIcon.icns"
+        cp InfoConsolidador.plist "dist/Consolidador-universal.app/Contents/Info.plist"
+        
+        cp -r assets "dist/Gerenciador-universal.app/Contents/Resources/"
+        cp -r data "dist/Gerenciador-universal.app/Contents/Resources/"
+        cp assets/icon.icns "dist/Gerenciador-universal.app/Contents/Resources/AppIcon.icns"
+        cp InfoGerenciador.plist "dist/Gerenciador-universal.app/Contents/Info.plist"
+        
+        # Cria o executável universal
+        lipo -create \
+          "dist/Consolidador-intel.app/Contents/MacOS/Consolidador" \
+          "dist/Consolidador-arm64.app/Contents/MacOS/Consolidador" \
+          -output "dist/Consolidador-universal.app/Contents/MacOS/Consolidador"
+          
+        lipo -create \
+          "dist/Gerenciador-intel.app/Contents/MacOS/Gerenciador" \
+          "dist/Gerenciador-arm64.app/Contents/MacOS/Gerenciador" \
+          -output "dist/Gerenciador-universal.app/Contents/MacOS/Gerenciador"
+        
+        # Ajusta permissões
+        chmod +x "dist/Consolidador-universal.app/Contents/MacOS/Consolidador"
+        chmod +x "dist/Gerenciador-universal.app/Contents/MacOS/Gerenciador"
+
+    - name: Create DMG
+      if: matrix.target_arch == 'arm64'  # Só cria o DMG uma vez
+      run: |
+        # Instala create-dmg
         brew install create-dmg
         
-        # Cria DMG para Consolidador
+        # Cria DMG para Consolidador Universal
         create-dmg \
           --volname "Consolidador" \
           --volicon "assets/icon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
-          --icon "Consolidador.app" 200 190 \
-          --hide-extension "Consolidador.app" \
+          --icon "Consolidador-universal.app" 200 190 \
+          --hide-extension "Consolidador-universal.app" \
           --app-drop-link 600 185 \
           "dist/Consolidador.dmg" \
-          "dist/Consolidador.app"
+          "dist/Consolidador-universal.app"
           
-        # Cria DMG para Gerenciador
+        # Cria DMG para Gerenciador Universal
         create-dmg \
           --volname "Gerenciador" \
           --volicon "assets/icon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
-          --icon "Gerenciador.app" 200 190 \
-          --hide-extension "Gerenciador.app" \
+          --icon "Gerenciador-universal.app" 200 190 \
+          --hide-extension "Gerenciador-universal.app" \
           --app-drop-link 600 185 \
           "dist/Gerenciador.dmg" \
-          "dist/Gerenciador.app"
+          "dist/Gerenciador-universal.app"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: macos-apps
+        name: macos-apps-${{ matrix.target_arch }}
         path: |
-          dist/*.dmg
           dist/*.app
+          dist/*.dmg
         retention-days: 7
 
-    - name: Create release (opcional)
-      if: startsWith(github.ref, 'refs/tags/v')
+    - name: Create release (on tag)
+      if: startsWith(github.ref, 'refs/tags/v') && matrix.target_arch == 'arm64'
       uses: softprops/action-gh-release@v2
       with:
         files: |
           dist/Consolidador.dmg
           dist/Gerenciador.dmg
+          dist/Consolidador-universal.app/**/*
+          dist/Gerenciador-universal.app/**/*
         draft: false
         prerelease: false
         generate_release_notes: true
