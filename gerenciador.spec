@@ -3,44 +3,40 @@
 block_cipher = None
 
 a = Analysis(
-    ['gerenciador.py'],  # Nome do seu script principal
+    ['gerenciador.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('assets/*', 'assets')  # Inclui a pasta de assets (se tiver ícone/imagens)
-        ('data/*.json', 'data')  # Inclui a pasta de assets (se tiver ícone/imagens)
+        ('assets/*', 'assets'),   # Inclui os arquivos de assets
+        ('data/*.json', 'data'),  # Inclui os arquivos de dados
     ],
-    hiddenimports=[
-        'pandas',
-        'openpyxl',
-        'customtkinter',
-        'tkinter',
-        'PIL'
-    ],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    cipher=block_cipher
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
 )
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
-    name='Gerenciador CUCALA',
+    name='Gerenciador',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False, # False para não abrir um terminal
-    disable_windowed_traceback=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon='assets/icon.icns' # Caminho para o ícone
+    console=True,
+    icon='assets/icon.icns'  # Ícone correto para macOS
 )
 
 coll = COLLECT(
@@ -51,13 +47,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='Gerenciador CUCALA'
-)
-
-# Seção que cria o .app para macOS
-app = BUNDLE(
-    coll,
-    name='Gerenciador CUCALA.app',
-    icon='assets/icon.icns',
-    bundle_identifier='com.cucala.gerenciador' # Identificador único do app
+    name='Gerenciador'
 )

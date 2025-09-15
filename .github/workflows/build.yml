@@ -1,4 +1,4 @@
-name: Build Executables
+name: Build macOS Apps
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [macos-13, macos-14]  # Intel e Apple Silicon
 
     steps:
     - uses: actions/checkout@v4
@@ -29,17 +29,40 @@ jobs:
 
     - name: Build executables
       run: |
-        if [ "${{ matrix.os }}" = "Windows" ]; then
-          pyinstaller --noconfirm consolidador.spec
-          pyinstaller --noconfirm gerenciador.spec
-        else
-          pyinstaller --noconfirm consolidador.spec
-          pyinstaller --noconfirm gerenciador.spec
-        fi
+        pyinstaller --noconfirm consolidador.spec
+        pyinstaller --noconfirm gerenciador.spec
 
+    - name: Package .app bundles
+      run: |
+        # Criar Consolidador.app
+        mkdir -p dist/Consolidador.app/Contents/MacOS
+        mkdir -p dist/Consolidador.app/Contents/Resources
+        cp dist/Consolidador/Consolidador dist/Consolidador.app/Contents/MacOS/
+        cp -r dist/Consolidador/assets dist/Consolidador.app/Contents/Resources/
+        cp -r dist/Consolidador/data dist/Consolidador.app/Contents/Resources/
+        cp assets/icon.icns dist/Consolidador.app/Contents/Resources/
+        cp InfoConsolidador.plist dist/Consolidador.app/Contents/Info.plist
+
+        # Criar Gerenciador.app
+        mkdir -p dist/Gerenciador.app/Contents/MacOS
+        mkdir -p dist/Gerenciador.app/Contents/Resources
+        cp dist/Gerenciador/Gerenciador dist/Gerenciador.app/Contents/MacOS/
+        cp -r dist/Gerenciador/assets dist/Gerenciador.app/Contents/Resources/
+        cp -r dist/Gerenciador/data dist/Gerenciador.app/Contents/Resources/
+        cp assets/icon.icns dist/Gerenciador.app/Contents/Resources/
+        cp InfoGerenciador.plist dist/Gerenciador.app/Contents/Info.plist
+
+        # Compactar apps
+        cd dist
+        zip -r Consolidador-${{ matrix.os }}.zip Consolidador.app
+        zip -r Gerenciador-${{ matrix.os }}.zip Gerenciador.app
+
+
+        
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-${{ matrix.os }}
+        name: apps-${{ matrix.os }}
         path: |
-          dist/**
+          dist/Consolidador-${{ matrix.os }}.zip
+          dist/Gerenciador-${{ matrix.os }}.zip
