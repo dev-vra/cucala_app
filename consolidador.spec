@@ -7,8 +7,8 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('assets', 'assets')  # Correto: Inclui a pasta de assets
-        ('data', 'data')  # Correto: Inclui a pasta de assets
+        ('assets/*', 'assets')  # Correto: Inclui a pasta de assets
+        ('data/*.json', 'data')  # Correto: Inclui a pasta de assets
     ],
     hiddenimports=[
         'pandas',
