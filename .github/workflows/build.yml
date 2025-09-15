@@ -20,7 +20,8 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
+        path: ~/.cache/pyinstaller
+        key: ${{ runner.os }}-pyinstaller-${{ hashFiles('**/*.spec') }}
 
     - name: Install dependencies
       run: |
@@ -58,7 +59,6 @@ jobs:
         zip -r Gerenciador-${{ matrix.os }}.zip Gerenciador.app
 
 
-        
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:

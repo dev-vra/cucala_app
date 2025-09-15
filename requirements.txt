@@ -1,6 +1,7 @@
 # Principais bibliotecas para manipulação de dados
-pandas
-openpyxl
+pandas==2.2.2 --only-binary :all:
+numpy==2.1.0 --only-binary :all:
+openpyxl==3.1.2 --only-binary :all:
 
 # Biblioteca para a interface gráfica (GUI)
 customtkinter
