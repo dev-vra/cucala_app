@@ -57,7 +57,10 @@ jobs:
           --app-drop-link 600 185 \
           "dist/Consolidador-intel.dmg" \
           "dist/Consolidador-intel.app"
-          
+         
+        echo "Pausing for 5 seconds to prevent resource busy errors..."
+        sleep 5  
+
         create-dmg \
           --volname "Gerenciador" \
           --volicon "assets/icon.icns" \
