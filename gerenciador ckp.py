@@ -130,14 +130,15 @@ class ConsultaEstoqueWindow(ctk.CTkToplevel):
         filter_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         filter_frame.pack(fill="x", pady=(0, 10))
 
-        # REMOVIDO: Carregamento do arquivo locais.json
-        
+        # Carrega os locais do JSON
+        with open(resource_path("data/locais.json"), "r", encoding="utf-8") as f:
+            self.locais_estoque = json.load(f)
+
         # --- Filtro Estoque ---
+        # CORRIGIDO: Removi a primeira chamada duplicada do Label que causava o texto repetido.
         ctk.CTkLabel(filter_frame, text="Filtrar por Estoque:").pack(side="left")
         self.estoque_filter_var = ctk.StringVar(value="Todos")
-        # ALTERADO: A lista de estoques agora é populada dinamicamente
-        # a partir dos dados existentes na planilha (coluna 'Estoque').
-        estoques = ["Todos"] + sorted(list(self.full_df['Estoque'].dropna().unique()))
+        estoques = ["Todos"] + list(self.locais_estoque.keys())
         self.estoque_filter_menu = ctk.CTkOptionMenu(
             filter_frame, variable=self.estoque_filter_var,
             values=estoques, command=self._update_table
@@ -147,20 +148,19 @@ class ConsultaEstoqueWindow(ctk.CTkToplevel):
         # --- Filtro Local ---
         ctk.CTkLabel(filter_frame, text="Filtrar por Local:").pack(side="left")
         self.local_filter_var = ctk.StringVar(value="Todos")
-        # ALTERADO: A lista de locais agora é populada dinamicamente
-        # a partir dos dados existentes na planilha (coluna 'Local').
-        locais = ["Todos"] + sorted(list(self.full_df['Local'].dropna().unique()))
+        # Criamos a lista de todos os locais únicos
+        locais = ["Todos"] + sorted({loc for locs in self.locais_estoque.values() for loc in locs})
         self.local_filter_menu = ctk.CTkOptionMenu(
             filter_frame, variable=self.local_filter_var,
             values=locais, command=self._update_table
         )
         self.local_filter_menu.pack(side="left", padx=10)
 
-        # Frame para conter a tabela (Treeview)
+        # ADICIONADO: Frame para conter a tabela (Treeview)
         tree_frame = ctk.CTkFrame(main_frame)
         tree_frame.pack(expand=True, fill="both", pady=(10, 0))
 
-        # Chamadas para criar e popular a tabela na inicialização da janela
+        # ADICIONADO: Chamadas para criar e popular a tabela na inicialização da janela
         self._setup_treeview(tree_frame)
         self._update_table()
 
@@ -214,7 +214,7 @@ class ConsultaEstoqueWindow(ctk.CTkToplevel):
         if selected_estoque != "Todos":
             df_filtrado = df_filtrado[df_filtrado['Estoque'] == selected_estoque]
 
-        # 3. Aplica o filtro de 'Local' sobre o resultado anterior
+        # 3. ADICIONADO: Aplica o filtro de 'Local' sobre o resultado anterior
         selected_local = self.local_filter_var.get()
         if selected_local != "Todos":
             df_filtrado = df_filtrado[df_filtrado['Local'] == selected_local]
@@ -376,10 +376,11 @@ class MovementWindow(ctk.CTkToplevel):
         self.grab_set()
 
         self.parent_app = parent
-        self.indices = indices          # lista de índices selecionados
-        self.rows_data = rows_data      # lista de dicts com os dados das linhas
+        self.indices = indices              # lista de índices selecionados
+        self.rows_data = rows_data          # lista de dicts com os dados das linhas
 
-        # REMOVIDO: Carregamento do arquivo locais.json não é mais necessário
+        with open(resource_path("data/locais.json"), "r", encoding="utf-8") as f:
+            self.locais_estoque = json.load(f)
 
         self._setup_widgets()
         self._load_initial_data()
@@ -390,7 +391,7 @@ class MovementWindow(ctk.CTkToplevel):
 
         # título mostra quantos lotes foram selecionados
         ctk.CTkLabel(main_frame, text=f"{len(self.indices)} lote(s) selecionado(s)",
-                        font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, columnspan=2, pady=10)
+                     font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, columnspan=2, pady=10)
 
         ctk.CTkLabel(main_frame, text="Estado do Lote:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         self.estado_var = ctk.StringVar()
@@ -434,17 +435,22 @@ class MovementWindow(ctk.CTkToplevel):
         self.estoque_var = ctk.StringVar()
         self.estoque_menu = ctk.CTkOptionMenu(
             self.conditional_frame, variable=self.estoque_var,
-            # ALTERADO: Removido o 'command' pois o campo Local é agora de texto livre
-            values=["", "Estoque 1", "Estoque 2"]
+            values=["", "Estoque 1", "Estoque 2"], command=self._on_estoque_change
         )
         self.estoque_menu.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
 
         ctk.CTkLabel(self.conditional_frame, text="Local:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
-        # ALTERADO: O OptionMenu foi substituído por um Entry para entrada de texto
-        self.local_entry = ctk.CTkEntry(self.conditional_frame, placeholder_text="Digite o local")
-        self.local_entry.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+        self.local_var = ctk.StringVar()
+        self.local_menu = ctk.CTkOptionMenu(self.conditional_frame, variable=self.local_var, values=[""])
+        self.local_menu.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+        self.local_menu.configure(state="disabled")
 
-    # REMOVIDO: Método _on_estoque_change não é mais necessário
+    def _on_estoque_change(self, selected_estoque):
+        if selected_estoque in self.locais_estoque:
+            self.local_menu.configure(values=self.locais_estoque[selected_estoque], state="normal")
+        else:
+            self.local_menu.configure(values=[""], state="disabled")
+            self.local_var.set("")
 
     def _create_em_uso_fields(self):
         ctk.CTkLabel(self.conditional_frame, text="Data de Retirada:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
@@ -473,8 +479,7 @@ class MovementWindow(ctk.CTkToplevel):
 
         if selected_estado == "Estocado":
             estoque = self.estoque_var.get()
-            # ALTERADO: Pega o valor do campo de texto 'local_entry'
-            local = self.local_entry.get()
+            local = self.local_var.get()
             if not estoque or not local:
                 messagebox.showerror("Erro", "Campos 'Estoque' e 'Local' são obrigatórios.", parent=self)
                 return
