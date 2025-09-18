@@ -30,7 +30,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='Consolidador CUCALA',
+    name='Consolidador',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -50,13 +50,13 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='Consolidador CUCALA'
+    name='Consolidador'
 )
 
 # Seção que cria o .app para macOS
 app = BUNDLE(
     coll,
-    name='Consolidador CUCALA.app',
+    name='Consolidador.app',
     icon='assets/icon.icns',  # Caminho para o ícone no formato .icns
     bundle_identifier='com.cucala.consolidador'  # Identificador único do app
 )
