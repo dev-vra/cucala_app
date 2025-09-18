@@ -29,7 +29,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='Gerenciador CUCALA',
+    name='Gerenciador',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -50,13 +50,13 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='Gerenciador CUCALA'
+    name='Gerenciador'
 )
 
 # Seção que cria o .app para macOS
 app = BUNDLE(
     coll,
-    name='Gerenciador CUCALA.app',
+    name='Gerenciador.app',
     icon='assets/icon.icns',
     bundle_identifier='com.cucala.gerenciador' # Identificador único do app
 )
