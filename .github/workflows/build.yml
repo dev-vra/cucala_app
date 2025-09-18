@@ -1,4 +1,4 @@
-name: Build and Package
+name: Build and Package (Intel)
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
 
 jobs:
   build:
-    # A compilação agora roda apenas em macos-latest (Apple Silicon)
-    runs-on: macos-latest
+    # 1. MUDANÇA: Usando runner com processador Intel
+    runs-on: macos-13
 
     steps:
     - name: Checkout code
@@ -20,8 +20,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        # Arquitetura definida diretamente como arm64
-        architecture: 'arm64'
+        # 2. MUDANÇA: Arquitetura definida para Intel (x64)
+        architecture: 'x64'
 
     - name: Install dependencies
       run: |
@@ -31,68 +31,66 @@ jobs:
 
     - name: Build executables
       run: |
-        # Gera o executável para arm64
+        # Gera o executável para Intel
         pyinstaller --clean --noconfirm consolidador.spec
         pyinstaller --noconfirm gerenciador.spec
 
-        echo "Pausing for 5 seconds to prevent resource busy errors..."
-        sleep 5
-        
-
-    # ETAPA REMOVIDA: A criação de app universal foi removida pois não há mais build Intel.
+    - name: Rename .app bundles
+      run: |
+        # 3. MUDANÇA: Renomeia os bundles para refletir a arquitetura Intel
+        mv "dist/Consolidador.app" "dist/Consolidador-intel.app"
+        mv "dist/Gerenciador.app" "dist/Gerenciador-intel.app"
 
     - name: Create DMG
       run: |
-        # Instala a ferramenta para criar o DMG
         brew install create-dmg
         
-        # Cria DMG para Consolidador (arm64)
+        # 4. MUDANÇA: Cria DMG a partir do app Intel
         create-dmg \
           --volname "Consolidador" \
           --volicon "assets/icon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
-          --icon "Consolidador.app" 200 190 \
-          --hide-extension "Consolidador.app" \
+          --icon "Consolidador-intel.app" 200 190 \
+          --hide-extension "Consolidador-intel.app" \
           --app-drop-link 600 185 \
-          "dist/Consolidador.dmg" \
-          "dist/Consolidador.app"
-        
+          "dist/Consolidador-intel.dmg" \
+          "dist/Consolidador-intel.app"
+         
         echo "Pausing for 5 seconds to prevent resource busy errors..."
         sleep 5  
 
-        # Cria DMG para Gerenciador (arm64)
         create-dmg \
           --volname "Gerenciador" \
           --volicon "assets/icon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
-          --icon "Gerenciador.app" 200 190 \
-          --hide-extension "Gerenciador.app" \
+          --icon "Gerenciador-intel.app" 200 190 \
+          --hide-extension "Gerenciador-intel.app" \
           --app-drop-link 600 185 \
-          "dist/Gerenciador.dmg" \
-          "dist/Gerenciador.app"
+          "dist/Gerenciador-intel.dmg" \
+          "dist/Gerenciador-intel.app"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        # O nome do artefato agora reflete a arquitetura única
-        name: macos-apps-arm64
+        # 5. MUDANÇA: Nome do artefato reflete a arquitetura Intel
+        name: macos-apps-intel
         path: |
-          dist/*.app
-          dist/*.dmg
+          dist/*-intel.app
+          dist/*-intel.dmg
         retention-days: 7
 
     - name: Create release (on tag)
-      # A condição foi simplificada, pois agora só há um job
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
+        # 6. MUDANÇA: Arquivos da release são os DMGs Intel
         files: |
-          dist/Consolidador.dmg
-          dist/Gerenciador.dmg
+          dist/Consolidador-intel.dmg
+          dist/Gerenciador-intel.dmg
         draft: false
         prerelease: false
         generate_release_notes: true
