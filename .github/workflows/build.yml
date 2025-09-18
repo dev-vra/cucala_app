@@ -35,6 +35,9 @@ jobs:
         pyinstaller --clean --noconfirm consolidador.spec
         pyinstaller --noconfirm gerenciador.spec
 
+        echo "Pausing for 20 seconds to prevent resource busy errors..."
+        sleep 20
+        
     - name: Rename .app bundles
       run: |
         # Renomeia os bundles para refletir a arquitetura
