@@ -1,3 +1,4 @@
+```yaml
 name: Build and Package
 
 on:
@@ -9,7 +10,6 @@ on:
 
 jobs:
   build:
-    # A compilação agora roda apenas em macos-latest (Apple Silicon)
     runs-on: macos-latest
 
     steps:
@@ -20,33 +20,31 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        # Arquitetura definida diretamente como arm64
         architecture: 'arm64'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install --no-cache-dir -r requirements.txt
-        pip install --no-cache-dir pyinstaller==6.3.0
+        # Usa versão mais recente do PyInstaller, a menos que 6.3.0 seja necessário
+        pip install --no-cache-dir pyinstaller
 
     - name: Build executables
       run: |
-        # Gera o executável para arm64
-        pyinstaller --clean --noconfirm consolidador.spec
-        pyinstaller --noconfirm gerenciador.spec
-
-        echo "Pausing for 20 seconds to prevent resource busy errors..."
-        sleep 20
-        
-
-    # ETAPA REMOVIDA: A criação de app universal foi removida pois não há mais build Intel.
+        # Gera executáveis com os novos .spec
+        pyinstaller --clean --noconfirm consolidador(1).spec
+        pyinstaller --clean --noconfirm gerenciador(1).spec
+        # Verifica se os .app foram gerados
+        ls -la dist/*.app || { echo "Erro: .app não encontrados!"; exit 1; }
+        echo "Pausing for 5 seconds to stabilize file system..."
+        sleep 5
 
     - name: Create DMG
       run: |
-        # Instala a ferramenta para criar o DMG
+        # Instala create-dmg
         brew install create-dmg
-        
-        # Cria DMG para Consolidador (arm64)
+
+        # Cria DMG para Consolidador
         create-dmg \
           --volname "Consolidador" \
           --volicon "assets/icon.icns" \
@@ -60,9 +58,9 @@ jobs:
           "dist/Consolidador.app"
         
         echo "Pausing for 5 seconds to prevent resource busy errors..."
-        sleep 5  
+        sleep 5
 
-        # Cria DMG para Gerenciador (arm64)
+        # Cria DMG para Gerenciador
         create-dmg \
           --volname "Gerenciador" \
           --volicon "assets/icon.icns" \
@@ -78,7 +76,6 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        # O nome do artefato agora reflete a arquitetura única
         name: macos-apps-arm64
         path: |
           dist/*.app
@@ -86,7 +83,6 @@ jobs:
         retention-days: 7
 
     - name: Create release (on tag)
-      # A condição foi simplificada, pois agora só há um job
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
@@ -96,3 +92,4 @@ jobs:
         draft: false
         prerelease: false
         generate_release_notes: true
+```
