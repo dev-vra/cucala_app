@@ -1,11 +1,10 @@
-```yaml
 name: Build and Package (Intel)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
@@ -13,100 +12,103 @@ jobs:
     runs-on: macos-13
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        architecture: 'x64'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          architecture: "x64"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install --no-cache-dir -r requirements.txt
-        pip install --no-cache-dir pyinstaller==6.3.0
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir pyinstaller==6.3.0
 
-    - name: Build executables
-      run: |
-        # Gera o executável para Intel
-        pyinstaller --clean --noconfirm consolidador(1).spec
-        pyinstaller --noconfirm gerenciador(1).spec
-        # Verifica se os .app foram gerados
-        ls -la dist/*.app || { echo "Erro: .app não encontrados!"; exit 1; }
-        echo "Pausing for 10 seconds to stabilize file system..."
-        sleep 10
+      - name: Build executables
+        run: |
+          pyinstaller --clean --noconfirm consolidador.spec
+          pyinstaller --noconfirm gerenciador.spec
+          echo "Listing generated .app files:"
+          ls -la dist/*.app || { echo "Error: .app files not found!"; exit 1; }
+          echo "Pausing for 10 seconds to stabilize file system..."
+          sleep 10
 
-    - name: Rename .app bundles
-      run: |
-        # Renomeia os bundles para refletir a arquitetura Intel
-        mv "dist/Consolidador.app" "dist/Consolidador-intel.app"
-        mv "dist/Gerenciador.app" "dist/Gerenciador-intel.app"
-        # Verifica se os .app renomeados existem
-        ls -la dist/*-intel.app || { echo "Erro: .app renomeados não encontrados!"; exit 1; }
-        echo "Pausing for 10 seconds to stabilize file system..."
-        sleep 10
+      - name: Rename .app bundles
+        run: |
+          mv "dist/Consolidador.app" "dist/Consolidador-intel.app"
+          mv "dist/Gerenciador.app" "dist/Gerenciador-intel.app"
+          echo "Listing renamed .app files:"
+          ls -la dist/*-intel.app || { echo "Error: Renamed .app files not found!"; exit 1; }
+          echo "Pausing for 10 seconds to stabilize file system..."
+          sleep 10
 
-    - name: Create DMG
-      run: |
-        brew install create-dmg
-        # Limpa DMGs antigos para evitar conflitos
-        rm -f dist/*.dmg
-        # Cria DMG para Consolidador com retry
-        for i in {1..3}; do
-          echo "Tentativa $i de criar DMG para Consolidador..."
-          create-dmg \
-            --volname "Consolidador" \
-            --volicon "assets/icon.icns" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --icon "Consolidador-intel.app" 200 190 \
-            --hide-extension "Consolidador-intel.app" \
-            --app-drop-link 600 185 \
-            "dist/Consolidador-intel.dmg" \
-            "dist/Consolidador-intel.app" && break
-          echo "Falha na tentativa $i, esperando 5 segundos antes de tentar novamente..."
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          rm -f dist/*.dmg
+          echo "Creating DMG for Consolidador..."
+          for attempt in {1..3}; do
+            if create-dmg \
+              --volname "Consolidador" \
+              --volicon "assets/icon.icns" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "Consolidador-intel.app" 200 190 \
+              --hide-extension "Consolidador-intel.app" \
+              --app-drop-link 600 185 \
+              "dist/Consolidador-intel.dmg" \
+              "dist/Consolidador-intel.app"; then
+              echo "DMG for Consolidador created successfully."
+              break
+            else
+              echo "Attempt $attempt failed for Consolidador. Retrying after 5 seconds..."
+              sleep 5
+            fi
+          done
+          echo "Pausing for 5 seconds..."
           sleep 5
-        done
-        echo "Pausing for 5 seconds to prevent resource busy errors..."
-        sleep 5
-        # Cria DMG para Gerenciador com retry
-        for i in {1..3}; do
-          echo "Tentativa $i de criar DMG para Gerenciador..."
-          create-dmg \
-            --volname "Gerenciador" \
-            --volicon "assets/icon.icns" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --icon "Gerenciador-intel.app" 200 190 \
-            --hide-extension "Gerenciador-intel.app" \
-            --app-drop-link 600 185 \
-            "dist/Gerenciador-intel.dmg" \
-            "dist/Gerenciador-intel.app" && break
-          echo "Falha na tentativa $i, esperando 5 segundos antes de tentar novamente..."
-          sleep 5
-        done
+          echo "Creating DMG for Gerenciador..."
+          for attempt in {1..3}; do
+            if create-dmg \
+              --volname "Gerenciador" \
+              --volicon "assets/icon.icns" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "Gerenciador-intel.app" 200 190 \
+              --hide-extension "Gerenciador-intel.app" \
+              --app-drop-link 600 185 \
+              "dist/Gerenciador-intel.dmg" \
+              "dist/Gerenciador-intel.app"; then
+              echo "DMG for Gerenciador created successfully."
+              break
+            else
+              echo "Attempt $attempt failed for Gerenciador. Retrying after 5 seconds..."
+              sleep 5
+            fi
+          done
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-apps-intel
-        path: |
-          dist/*-intel.app
-          dist/*-intel.dmg
-        retention-days: 7
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-apps-intel
+          path: |
+            dist/*-intel.app
+            dist/*-intel.dmg
+          retention-days: 7
 
-    - name: Create release (on tag)
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          dist/Consolidador-intel.dmg
-          dist/Gerenciador-intel.dmg
-        draft: false
-        prerelease: false
-        generate_release_notes: true
+      - name: Create release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Consolidador-intel.dmg
+            dist/Gerenciador-intel.dmg
+          draft: false
+          prerelease: false
+          generate_release_notes: true
 ```
